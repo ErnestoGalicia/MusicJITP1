@@ -4,166 +4,330 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Music JIT Trainer</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIk11c2ljIEpJVCBUcmFpbmVyIiwKICAic2hvcnRfbmFtZSI6ICJNdXNpY1RyYWluZXIiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzAwMDAwMCIsCiAgInRoZW1lX2NvbG9yIjogIiMwMDAwMDAiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJodHRwczovL3ZpYS5wbGFjZWhvbGRlci5jb20vMTkyIiwKICAgICAgInNpemVzIjogIjE5MngxOTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciCiAgICB9CiAgXQp9">
+    <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .safe-area-bottom {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
         .card-enter { animation: slideUp 0.3s ease-out forwards; }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Subtle Glow Effects */
+        .glow-active {
+            box-shadow: 0 0 8px 1px rgba(37, 99, 235, 0.2);
+            border-color: #2563eb !important;
+            color: #2563eb !important;
         }
-
-        .mastery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
-            gap: 0.5rem;
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
-        }
-
-        input[type="range"]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 8px;
-            background: #e2e8f0;
-            border-radius: 4px;
-        }
-
-        .dark input[type="range"]::-webkit-slider-runnable-track {
-            background: #27272a;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #2563eb;
-            cursor: pointer;
-            margin-top: -6px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        .dark .glow-active {
+            box-shadow: 0 0 10px 1px rgba(37, 99, 235, 0.3);
         }
     </style>
 </head>
 <body class="bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors duration-300 overflow-hidden">
 
-    <div id="app" class="flex flex-col h-screen">
-        <!-- Header -->
+    <div id="app" class="flex flex-col h-screen relative">
+        <!-- Top Header -->
         <header class="pt-12 pb-4 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-center shrink-0">
-            <h1 id="view-title" class="text-xl font-bold tracking-tight">Licks y patrones</h1>
-            <button onclick="openModal()" class="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-500/20">
-                <i data-lucide="plus" class="w-5 h-5"></i>
-                <span class="text-sm font-semibold">Nuevo</span>
-            </button>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar(true)" class="p-2 -ml-2 text-slate-500"><i data-lucide="menu"></i></button>
+                <h1 id="view-title" class="text-xl font-bold tracking-tight">Licks y patrones</h1>
+            </div>
+            <button onclick="openModal()" class="p-2 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20"><i data-lucide="plus" class="w-5 h-5"></i></button>
         </header>
 
-        <!-- Main Content Scroll Area -->
-        <main id="card-container" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-32">
-            <!-- Cards injected here -->
+        <!-- Main Content Area -->
+        <main id="card-container" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-48">
+            <!-- Cards Injected Here -->
         </main>
 
-        <!-- Bottom Navigation -->
+        <!-- Stats/Researcher Sidebar Overlay -->
+        <div id="sidebar" class="fixed inset-0 z-[200] hidden">
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleSidebar(false)"></div>
+            <div class="absolute inset-y-0 left-0 w-4/5 max-w-sm bg-white dark:bg-zinc-900 shadow-2xl flex flex-col p-6">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-xl font-bold">Panel de Control</h2>
+                    <button onclick="toggleSidebar(false)"><i data-lucide="x"></i></button>
+                </div>
+                <div class="space-y-6 flex-1 overflow-y-auto no-scrollbar">
+                    <div class="bg-slate-100 dark:bg-zinc-800 p-4 rounded-2xl">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Estadísticas Globales</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><p id="stat-time" class="text-xl font-bold">0m</p><p class="text-[10px] text-slate-500">Práctica Total</p></div>
+                            <div><p id="stat-cards" class="text-xl font-bold">0</p><p class="text-[10px] text-slate-500">Tarjetas Totales</p></div>
+                            <div><p id="stat-levelups" class="text-xl font-bold">0</p><p class="text-[10px] text-slate-500">Subidas Nivel</p></div>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="exportProgress()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 mb-4">
+                    <i data-lucide="share-2" class="w-5 h-5"></i> Compartir Progreso
+                </button>
+            </div>
+        </div>
+
+        <!-- Independent Tool Icons -->
+        <div class="fixed bottom-20 right-4 z-40 flex flex-col gap-3 pointer-events-none">
+            <!-- Metronome Icon -->
+            <button id="min-metro" onclick="openMetroDetail()" class="pointer-events-auto w-14 h-14 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl flex flex-col items-center justify-center transition-all active:scale-95">
+                <i data-lucide="music-2" class="w-5 h-5 mb-0.5"></i>
+                <span id="mini-bpm" class="text-[10px] font-bold">120</span>
+            </button>
+            <!-- Timer Icon -->
+            <button id="min-timer-btn" onclick="openTimerDetail()" class="pointer-events-auto w-14 h-14 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl flex flex-col items-center justify-center transition-all active:scale-95">
+                <i data-lucide="timer" class="w-5 h-5 mb-0.5"></i>
+                <span id="mini-timer" class="text-[10px] font-mono font-bold">--:--</span>
+            </button>
+        </div>
+
+        <!-- Metronome Detail Modal -->
+        <div id="metro-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] hidden items-center justify-center p-6">
+            <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
+                <button onclick="closeMetroDetail()" class="absolute top-6 right-6 text-slate-400"><i data-lucide="x"></i></button>
+                <h3 class="text-xl font-bold mb-8 text-blue-600">Metrónomo</h3>
+                
+                <div class="flex justify-center mb-8">
+                    <button id="metro-toggle" onclick="toggleMetronome()" class="w-20 h-20 rounded-full bg-slate-100 dark:bg-zinc-800 text-blue-600 flex items-center justify-center transition-all">
+                        <i data-lucide="play" id="metro-icon" class="w-10 h-10 ml-1"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button onclick="changeBPM(-1)" class="p-3 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">-</button>
+                    <div class="flex-1 text-center">
+                        <span id="detail-bpm" class="text-5xl font-black">120</span>
+                        <input type="range" id="bpm-slider" min="30" max="300" value="120" oninput="setBPM(this.value)" class="w-full mt-6">
+                    </div>
+                    <button onclick="changeBPM(1)" class="p-3 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">+</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timer Detail Modal -->
+        <div id="timer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] hidden items-center justify-center p-6">
+            <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
+                <button onclick="closeTimerDetail()" class="absolute top-6 right-6 text-slate-400"><i data-lucide="x"></i></button>
+                <h3 class="text-xl font-bold mb-8 text-blue-600">Temporizador</h3>
+                
+                <div class="space-y-6">
+                    <div class="text-center py-4">
+                        <span id="detail-timer-clock" class="text-6xl font-black font-mono">00:00</span>
+                    </div>
+                    <div id="alarm-banner" class="hidden bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 p-3 rounded-xl text-center text-sm font-bold animate-pulse mb-4">
+                        Terminado
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <select id="timer-select" class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl font-bold appearance-none text-center">
+                            <option value="0.0833">5 seg (Test)</option>
+                            <option value="5">5 min</option>
+                            <option value="10">10 min</option>
+                            <option value="15">15 min</option>
+                            <option value="25">25 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">60 min</option>
+                        </select>
+                        <button id="timer-btn" onclick="toggleTimer()" class="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg shadow-lg">Iniciar</button>
+                        <button id="stop-alarm-btn" onclick="stopAlarm()" class="hidden w-full py-5 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg">Entendido</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Bar -->
         <nav class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-slate-200 dark:border-zinc-800 safe-area-bottom z-50">
             <div class="flex justify-around items-center h-16">
-                <button onclick="switchTab('Licks y patrones')" class="nav-item flex flex-col items-center gap-1 transition-colors" data-tab="Licks y patrones">
-                    <i data-lucide="music" class="w-6 h-6"></i>
-                    <span class="text-[9px] font-medium uppercase tracking-tighter">Licks</span>
-                </button>
-                <button onclick="switchTab('Cadenas')" class="nav-item flex flex-col items-center gap-1 transition-colors" data-tab="Cadenas">
-                    <i data-lucide="layers" class="w-6 h-6"></i>
-                    <span class="text-[9px] font-medium uppercase tracking-tighter">Cadenas</span>
-                </button>
-                <button onclick="switchTab('Conceptos')" class="nav-item flex flex-col items-center gap-1 transition-colors" data-tab="Conceptos">
-                    <i data-lucide="brain" class="w-6 h-6"></i>
-                    <span class="text-[9px] font-medium uppercase tracking-tighter">Conceptos</span>
-                </button>
-                <button onclick="switchTab('Canciones')" class="nav-item flex flex-col items-center gap-1 transition-colors" data-tab="Canciones">
-                    <i data-lucide="mic-2" class="w-6 h-6"></i>
-                    <span class="text-[9px] font-medium uppercase tracking-tighter">Canciones</span>
-                </button>
+                <button onclick="switchTab('Licks y patrones')" class="nav-item flex flex-col items-center gap-1" data-tab="Licks y patrones"><i data-lucide="music" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Licks</span></button>
+                <button onclick="switchTab('Cadenas')" class="nav-item flex flex-col items-center gap-1" data-tab="Cadenas"><i data-lucide="layers" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Cadenas</span></button>
+                <button onclick="switchTab('Conceptos')" class="nav-item flex flex-col items-center gap-1" data-tab="Conceptos"><i data-lucide="brain" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Conceptos</span></button>
+                <button onclick="switchTab('Canciones')" class="nav-item flex flex-col items-center gap-1" data-tab="Canciones"><i data-lucide="mic-2" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Canciones</span></button>
             </div>
         </nav>
     </div>
 
-    <!-- Modal for Adding Card -->
+    <!-- Modals -->
     <div id="card-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform transition-transform translate-y-full" id="modal-content">
+        <div class="bg-white dark:bg-zinc-900 w-full max-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform transition-transform translate-y-full" id="modal-content">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold">Añadir Flashcard</h2>
-                <button onclick="closeModal()" class="text-slate-400">
-                    <i data-lucide="x" class="w-6 h-6"></i>
-                </button>
+                <h2 id="modal-card-title" class="text-xl font-bold">Añadir Flashcard</h2>
+                <button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <form id="card-form" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Título</label>
-                    <input type="text" id="form-title" required class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Descripción (Opcional)</label>
-                    <textarea id="form-desc" rows="3" class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-                </div>
+                <input type="text" id="form-title" placeholder="Título" required class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none">
+                <textarea id="form-desc" rows="3" placeholder="Descripción" class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none"></textarea>
                 <button type="submit" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl">Guardar</button>
             </form>
         </div>
     </div>
 
-    <!-- Level Detail Window (Genially Style) -->
     <div id="level-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] hidden items-center justify-center p-6">
         <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
             <div class="flex justify-between items-center mb-6">
                 <h3 id="level-modal-title" class="text-xl font-bold text-blue-600">Categoria</h3>
-                <button onclick="closeLevelModal()" class="text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button>
+                <button onclick="closeLevelModal()" class="text-slate-400"><i data-lucide="x"></i></button>
             </div>
-            <div id="level-checkboxes" class="space-y-4">
-                <!-- Checkboxes injected here -->
-            </div>
-            <p class="text-center text-[10px] text-slate-400 mt-8 uppercase tracking-widest font-bold">Progreso Nivel</p>
+            <div id="level-checkboxes" class="space-y-4"></div>
         </div>
     </div>
 
     <script>
-        const CATEGORIES = [
-            { id: 'transferencia', name: 'Transferencia', type: 'levels' },
-            { id: 'mejora', name: 'Mejora', type: 'percentage' },
-            { id: 'consistencia', name: 'Consistencia', type: 'levels' },
-            { id: 'automatismo', name: 'Automatismo', type: 'levels' },
-            { id: 'estabilidad', name: 'Estabilidad', type: 'levels' }
-        ];
-
+        // Global State
         let currentTab = 'Licks y patrones';
-        let activeCardIndex = null;
-        let activeLevelId = null;
-
-        let data = JSON.parse(localStorage.getItem('music_jit_v3')) || {
-            'Licks y patrones': [], 'Cadenas': [], 'Conceptos': [], 'Canciones': []
+        let editingIndex = -1; // -1 means creating new
+        let data = JSON.parse(localStorage.getItem('music_jit_v4')) || {
+            'Licks y patrones': [], 'Cadenas': [], 'Conceptos': [], 'Canciones': [],
+            stats: { totalPracticeTime: 0, levelUps: 0 }
         };
 
+        // --- Audio Core ---
+        let audioCtx = null;
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+
+        // --- Metronome ---
+        let nextBeatTime = 0.0;
+        let bpm = 120;
+        let isMetroRunning = false;
+        let metroTimerId = null;
+
+        function playClick() {
+            const osc = audioCtx.createOscillator();
+            const envelope = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            envelope.gain.value = 1;
+            envelope.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 0.001);
+            envelope.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.connect(envelope);
+            envelope.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function scheduler() {
+            while (nextBeatTime < audioCtx.currentTime + 0.1) {
+                playClick();
+                nextBeatTime += 60.0 / bpm;
+            }
+            metroTimerId = setTimeout(scheduler, 25);
+        }
+
+        function toggleMetronome() {
+            initAudio();
+            isMetroRunning = !isMetroRunning;
+            const btn = document.getElementById('metro-toggle');
+            const icon = document.getElementById('metro-icon');
+            const minBtn = document.getElementById('min-metro');
+            
+            if (isMetroRunning) {
+                btn.classList.add('bg-blue-600', 'text-white');
+                icon.setAttribute('data-lucide', 'pause');
+                minBtn.classList.add('glow-active');
+                nextBeatTime = audioCtx.currentTime;
+                scheduler();
+            } else {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                icon.setAttribute('data-lucide', 'play');
+                minBtn.classList.remove('glow-active');
+                clearTimeout(metroTimerId);
+            }
+            lucide.createIcons();
+        }
+
+        function setBPM(val) {
+            bpm = parseInt(val);
+            document.getElementById('mini-bpm').innerText = bpm;
+            document.getElementById('detail-bpm').innerText = bpm;
+            document.getElementById('bpm-slider').value = bpm;
+        }
+        function changeBPM(delta) { setBPM(bpm + delta); }
+
+        // --- Timer & Alarm ---
+        let timeLeft = 0;
+        let timerRunning = false;
+        let countdownId = null;
+
+        function startAlarm() {
+            initAudio();
+            const now = audioCtx.currentTime;
+            
+            // Zen Chime Sequence (Fades out automatically)
+            const playChime = (freq, startTime, duration) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, startTime);
+                
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.1, startTime + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            };
+
+            // Play a soft 3-note chime sequence that ends on its own
+            playChime(523.25, now, 2);       // C5
+            playChime(659.25, now + 0.5, 2); // E5
+            playChime(783.99, now + 1.0, 3); // G5
+            
+            document.getElementById('alarm-banner').classList.remove('hidden');
+            document.getElementById('stop-alarm-btn').classList.remove('hidden');
+            document.getElementById('timer-btn').classList.add('hidden');
+            openTimerDetail();
+        }
+
+        function stopAlarm() {
+            // Functional stop: hides UI banners and restores buttons
+            document.getElementById('alarm-banner').classList.add('hidden');
+            document.getElementById('stop-alarm-btn').classList.add('hidden');
+            document.getElementById('timer-btn').classList.remove('hidden');
+        }
+
+        function toggleTimer() {
+            const minBtn = document.getElementById('min-timer-btn');
+            if (timerRunning) {
+                clearInterval(countdownId);
+                timerRunning = false;
+                document.getElementById('timer-btn').innerText = 'Iniciar';
+                document.getElementById('mini-timer').innerText = '--:--';
+                document.getElementById('detail-timer-clock').innerText = '00:00';
+                minBtn.classList.remove('glow-active');
+            } else {
+                timeLeft = Math.round(document.getElementById('timer-select').value * 60);
+                timerRunning = true;
+                document.getElementById('timer-btn').innerText = 'Parar';
+                minBtn.classList.add('glow-active');
+                updateTimerDisplay();
+                countdownId = setInterval(() => {
+                    timeLeft--;
+                    data.stats.totalPracticeTime++;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(countdownId);
+                        timerRunning = false;
+                        minBtn.classList.remove('glow-active');
+                        document.getElementById('timer-btn').innerText = 'Iniciar';
+                        startAlarm();
+                    }
+                    if (timeLeft % 60 === 0) saveData(); 
+                }, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            const display = `${m}:${s < 10 ? '0' : ''}${s}`;
+            document.getElementById('mini-timer').innerText = display;
+            document.getElementById('detail-timer-clock').innerText = display;
+        }
+
+        // --- Core UI & Navigation ---
         function switchTab(tab) {
             currentTab = tab;
             document.getElementById('view-title').innerText = tab;
@@ -174,181 +338,156 @@
             renderCards();
         }
 
+        function toggleSidebar(show) {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden', !show);
+            if(show) updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-time').innerText = Math.floor(data.stats.totalPracticeTime / 60) + 'm';
+            let count = 0;
+            ['Licks y patrones', 'Cadenas', 'Conceptos', 'Canciones'].forEach(t => count += data[t].length);
+            document.getElementById('stat-cards').innerText = count;
+            document.getElementById('stat-levelups').innerText = data.stats.levelUps;
+        }
+
+        function exportProgress() {
+            const text = `Mi progreso en Music JIT Trainer:\nSubidas de Nivel: ${data.stats.levelUps}\nTiempo de práctica: ${Math.floor(data.stats.totalPracticeTime / 60)} min`;
+            if (navigator.share) {
+                navigator.share({ title: 'Progreso Musical', text: text });
+            } else {
+                navigator.clipboard.writeText(text);
+                alert("Progreso copiado al portapapeles");
+            }
+        }
+
+        function openMetroDetail() { document.getElementById('metro-modal').classList.replace('hidden', 'flex'); }
+        function closeMetroDetail() { document.getElementById('metro-modal').classList.replace('flex', 'hidden'); }
+        function openTimerDetail() { document.getElementById('timer-modal').classList.replace('hidden', 'flex'); }
+        function closeTimerDetail() { document.getElementById('timer-modal').classList.replace('flex', 'hidden'); }
+
+        function openModal(idx = -1) { 
+            editingIndex = idx;
+            const titleInput = document.getElementById('form-title');
+            const descInput = document.getElementById('form-desc');
+            const modalTitle = document.getElementById('modal-card-title');
+            
+            if (idx !== -1) {
+                const card = data[currentTab][idx];
+                titleInput.value = card.title;
+                descInput.value = card.description;
+                modalTitle.innerText = "Editar Flashcard";
+            } else {
+                titleInput.value = "";
+                descInput.value = "";
+                modalTitle.innerText = "Añadir Flashcard";
+            }
+
+            document.getElementById('card-modal').classList.remove('hidden'); 
+            setTimeout(()=>document.getElementById('modal-content').classList.remove('translate-y-full'),10); 
+        }
+
+        function closeModal() { 
+            document.getElementById('modal-content').classList.add('translate-y-full'); 
+            setTimeout(()=>document.getElementById('card-modal').classList.add('hidden'),300); 
+        }
+
+        function saveData() { localStorage.setItem('music_jit_v4', JSON.stringify(data)); }
+        function deleteCard(i) { if(confirm('¿Eliminar?')){ data[currentTab].splice(i,1); saveData(); renderCards(); } }
+
+        const CATEGORIES = [
+            { id: 'transferencia', name: 'Transferencia', type: 'levels' },
+            { id: 'mejora', name: 'Mejora', type: 'percentage' },
+            { id: 'consistencia', name: 'Consistencia', type: 'levels' },
+            { id: 'automatismo', name: 'Automatismo', type: 'levels' },
+            { id: 'estabilidad', name: 'Estabilidad', type: 'levels' }
+        ];
+
         function renderCards() {
             const container = document.getElementById('card-container');
             container.innerHTML = '';
             const tabData = data[currentTab] || [];
-
-            if (tabData.length === 0) {
-                container.innerHTML = `<div class="py-20 text-center opacity-30"><i data-lucide="music" class="w-12 h-12 mx-auto mb-2"></i><p>Vacío</p></div>`;
-                lucide.createIcons();
-                return;
-            }
-
             tabData.forEach((card, index) => {
                 const cardEl = document.createElement('div');
                 cardEl.className = 'card-enter bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-zinc-800';
-                
-                const masterySummary = CATEGORIES.map(cat => {
-                    if (cat.type === 'percentage') return `${card.mastery[cat.id]}%`;
-                    const count = card.mastery[cat.id].filter(v => v).length;
-                    return `${count}/3`;
-                });
-
                 cardEl.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
-                        <div class="flex-1">
-                            <h3 class="font-bold text-lg leading-tight">${card.title}</h3>
-                            <p class="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase mt-1">${card.description || 'Sin descripción'}</p>
+                        <div class="flex-1"><h3 class="font-bold text-lg">${card.title}</h3><p class="text-[10px] text-slate-400 uppercase">${card.description || ''}</p></div>
+                        <div class="flex gap-3">
+                            <button onclick="openModal(${index})" class="text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="deleteCard(${index})" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>
-                        <button onclick="deleteCard(${index})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
-                    
-                    <div class="mastery-grid">
+                    <div class="grid grid-cols-5 gap-2">
                         ${CATEGORIES.map(cat => {
                             const val = card.mastery[cat.id];
-                            const isPercentage = cat.type === 'percentage';
-                            const isActive = isPercentage ? val > 0 : val.some(v => v);
-                            
-                            return `
-                                <button onclick="openLevelDetail(${index}, '${cat.id}')" 
-                                    class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all 
-                                    ${isActive ? 'bg-blue-50 border-blue-600 dark:bg-blue-900/20 text-blue-600' : 'border-slate-100 dark:border-zinc-800 text-slate-400'}">
-                                    <span class="text-[7px] font-black uppercase tracking-tighter text-center h-4 flex items-center">${cat.name}</span>
-                                    <div class="text-[10px] font-bold">${isPercentage ? val + '%' : val.filter(v => v).length + '/3'}</div>
-                                </button>
-                            `;
+                            const active = cat.type === 'percentage' ? val > 0 : val.some(v => v);
+                            return `<button onclick="openLevelDetail(${index},'${cat.id}')" class="flex flex-col items-center p-2 rounded-xl border-2 transition-all ${active ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-600 text-blue-600 glow-active' : 'bg-slate-50 dark:bg-zinc-800 border-slate-100 dark:border-zinc-700 text-slate-400'}">
+                                <span class="text-[6px] font-black uppercase text-center">${cat.name}</span>
+                                <span class="text-[10px] font-bold">${cat.type === 'percentage' ? val+'%' : val.filter(v=>v).length+'/3'}</span>
+                            </button>`;
                         }).join('')}
-                    </div>
-                `;
+                    </div>`;
                 container.appendChild(cardEl);
             });
             lucide.createIcons();
         }
 
-        function openLevelDetail(cardIndex, catId) {
-            activeCardIndex = cardIndex;
-            activeLevelId = catId;
-            const category = CATEGORIES.find(c => c.id === catId);
-            const card = data[currentTab][cardIndex];
-            
-            const modal = document.getElementById('level-modal');
-            const title = document.getElementById('level-modal-title');
+        let activeCardIdx, activeCatId;
+        function openLevelDetail(idx, catId) {
+            activeCardIdx = idx; activeCatId = catId;
+            const cat = CATEGORIES.find(c => c.id === catId);
+            const card = data[currentTab][idx];
+            document.getElementById('level-modal-title').innerText = cat.name;
             const container = document.getElementById('level-checkboxes');
-            
-            title.innerText = category.name;
             container.innerHTML = '';
-
-            if (category.type === 'levels') {
-                [0, 1, 2].forEach(i => {
-                    const checked = card.mastery[catId][i];
+            if (cat.type === 'levels') {
+                [0,1,2].forEach(i => {
+                    const chk = card.mastery[catId][i];
                     const div = document.createElement('div');
-                    div.className = `flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${checked ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-slate-50 dark:bg-zinc-800 text-slate-400 border-transparent'}`;
-                    div.onclick = () => toggleSubLevel(i);
-                    div.innerHTML = `
-                        <span class="font-bold text-sm">Level ${i + 1} (text)</span>
-                        <i data-lucide="${checked ? 'check-circle' : 'circle'}" class="w-5 h-5"></i>
-                    `;
+                    div.className = `p-4 rounded-xl border-2 flex justify-between transition-all ${chk ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20' : 'bg-slate-50 dark:bg-zinc-800 text-slate-400 border-slate-100 dark:border-zinc-700'}`;
+                    div.onclick = () => {
+                        card.mastery[catId][i] = !card.mastery[catId][i];
+                        if(card.mastery[catId][i]) data.stats.levelUps++;
+                        saveData(); openLevelDetail(idx, catId); renderCards();
+                    };
+                    div.innerHTML = `<span>Nivel ${i+1}</span><i data-lucide="${chk?'check-circle':'circle'}"></i>`;
                     container.appendChild(div);
                 });
             } else {
-                const val = card.mastery[catId];
-                container.innerHTML = `
-                    <div class="text-center mb-4">
-                        <span class="text-5xl font-black text-blue-600">${val}%</span>
-                    </div>
-                    <input type="range" min="0" max="100" value="${val}" oninput="updatePercentage(this.value)" class="my-8">
-                    <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
-                        <span>0%</span>
-                        <span>Progreso</span>
-                        <span>100%</span>
-                    </div>
-                `;
+                container.innerHTML = `<div class="text-center"><span class="text-4xl font-black">${card.mastery[catId]}%</span></div>
+                    <input type="range" value="${card.mastery[catId]}" oninput="updatePerc(this.value)" class="w-full my-8">`;
             }
-
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            document.getElementById('level-modal').classList.replace('hidden', 'flex');
             lucide.createIcons();
         }
-
-        function toggleSubLevel(levelIndex) {
-            const card = data[currentTab][activeCardIndex];
-            card.mastery[activeLevelId][levelIndex] = !card.mastery[activeLevelId][levelIndex];
-            saveData();
-            openLevelDetail(activeCardIndex, activeLevelId); // Refresh modal
-            renderCards();
-        }
-
-        function updatePercentage(val) {
-            const card = data[currentTab][activeCardIndex];
-            card.mastery[activeLevelId] = parseInt(val);
-            saveData();
-            // Update the display in the modal without closing it
-            const display = document.querySelector('#level-checkboxes span.text-5xl');
-            if(display) display.innerText = val + '%';
-            renderCards();
-        }
-
-        function closeLevelModal() {
-            document.getElementById('level-modal').classList.add('hidden');
-            document.getElementById('level-modal').classList.remove('flex');
-        }
-
-        function openModal() {
-            const modal = document.getElementById('card-modal');
-            const content = document.getElementById('modal-content');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            setTimeout(() => content.classList.remove('translate-y-full'), 10);
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('card-modal');
-            const content = document.getElementById('modal-content');
-            content.classList.add('translate-y-full');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-                document.getElementById('card-form').reset();
-            }, 300);
-        }
+        function updatePerc(v) { data[currentTab][activeCardIdx].mastery[activeCatId] = parseInt(v); saveData(); renderCards(); document.querySelector('#level-checkboxes span').innerText = v+'%'; }
+        function closeLevelModal() { document.getElementById('level-modal').classList.replace('flex', 'hidden'); }
 
         document.getElementById('card-form').onsubmit = (e) => {
             e.preventDefault();
-            const newCard = {
-                title: document.getElementById('form-title').value,
-                description: document.getElementById('form-desc').value,
-                mastery: {
-                    transferencia: [false, false, false],
-                    mejora: 0,
-                    consistencia: [false, false, false],
-                    automatismo: [false, false, false],
-                    estabilidad: [false, false, false]
-                },
-                createdAt: Date.now()
-            };
-            data[currentTab].unshift(newCard);
-            saveData();
-            renderCards();
-            closeModal();
-        };
+            const title = document.getElementById('form-title').value;
+            const description = document.getElementById('form-desc').value;
 
-        function deleteCard(index) {
-            if(confirm('¿Eliminar?')) {
-                data[currentTab].splice(index, 1);
-                saveData();
-                renderCards();
+            if (editingIndex !== -1) {
+                // Update existing
+                const card = data[currentTab][editingIndex];
+                card.title = title;
+                card.description = description;
+            } else {
+                // Create new
+                data[currentTab].unshift({
+                    title: title,
+                    description: description,
+                    mastery: { transferencia:[0,0,0], mejora:0, consistencia:[0,0,0], automatismo:[0,0,0], estabilidad:[0,0,0] }
+                });
             }
-        }
-
-        function saveData() {
-            localStorage.setItem('music_jit_v3', JSON.stringify(data));
-        }
-
-        window.onload = () => {
-            lucide.createIcons();
-            switchTab('Licks y patrones');
+            
+            saveData(); renderCards(); closeModal();
         };
+
+        window.onload = () => { lucide.createIcons(); switchTab('Licks y patrones'); };
     </script>
 </body>
 </html>
