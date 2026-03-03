@@ -6,96 +6,138 @@
     <title>Music JIT Trainer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .card-enter { animation: slideUp 0.3s ease-out forwards; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card-enter { animation: slideUp 0.2s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Subtle Glow Effects */
-        .glow-active {
-            box-shadow: 0 0 8px 1px rgba(37, 99, 235, 0.2);
-            border-color: #2563eb !important;
-            color: #2563eb !important;
-        }
-        .dark .glow-active {
-            box-shadow: 0 0 10px 1px rgba(37, 99, 235, 0.3);
-        }
+        .hub-arc { fill: none; stroke: #e2e8f0; stroke-width: 4; stroke-linecap: round; transition: all 0.3s ease; }
+        .dark .hub-arc { stroke: #27272a; }
+        .segment-active { filter: drop-shadow(0 0 5px #3b82f6); stroke: #3b82f6 !important; stroke-width: 5px; }
+        
+        .prevent-select { -webkit-user-select: none; user-select: none; }
+        
+        #tools-drawer { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s; }
+        .drawer-hidden { transform: translateY(20px) scale(0.95); opacity: 0; pointer-events: none; }
+        .drawer-visible { transform: translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+
+        .mastery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; width: 100%; }
+        @media (max-width: 400px) { .mastery-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        .sublevel-stack { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
+        
+        #context-menu { position: fixed; z-index: 1000; min-width: 160px; }
+        
+        .spec-tag { @apply px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-[9px] font-black uppercase tracking-tighter text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700; }
+        
+        .level-locked { opacity: 0.4; filter: grayscale(1); cursor: not-allowed !important; }
+
+        /* Sidebar Styles */
+        #sidebar { transition: transform 0.3s ease-in-out; z-index: 300; }
+        #sidebar-overlay { transition: opacity 0.3s ease-in-out; z-index: 299; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors duration-300 overflow-hidden">
+<body class="bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors duration-300 overflow-hidden prevent-select">
 
     <div id="app" class="flex flex-col h-screen relative">
-        <!-- Top Header -->
-        <header class="pt-12 pb-4 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-center shrink-0">
-            <div class="flex items-center gap-4">
-                <button onclick="toggleSidebar(true)" class="p-2 -ml-2 text-slate-500"><i data-lucide="menu"></i></button>
-                <h1 id="view-title" class="text-xl font-bold tracking-tight">Licks y patrones</h1>
+        <!-- Sidebar and Overlay -->
+        <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 opacity-0 pointer-events-none"></div>
+        <div id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-white dark:bg-zinc-900 shadow-2xl -translate-x-full">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-10">
+                    <h2 class="text-xl font-black text-blue-600">MENÚ</h2>
+                    <button onclick="toggleSidebar()"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                <nav class="space-y-4">
+                    <button onclick="exportToCSV()" class="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-zinc-800 rounded-2xl hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors text-left">
+                        <i data-lucide="file-spreadsheet" class="w-6 h-6 text-emerald-600"></i>
+                        <span class="text-sm font-bold"> Exportar Datos de Investigación (CSV)</span>
+                    </button>
+                    <!-- Puedes añadir más opciones aquí -->
+                </nav>
             </div>
-            <button onclick="openModal()" class="p-2 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20"><i data-lucide="plus" class="w-5 h-5"></i></button>
+            <div class="absolute bottom-10 left-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                JIT Trainer v1.1.5
+            </div>
+        </div>
+
+        <header class="pt-12 pb-2 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 shrink-0">
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                    <h1 id="view-title" class="text-xl font-bold tracking-tight">Licks y patrones</h1>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="undo()" id="btn-undo" class="p-2 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 disabled:opacity-30" disabled><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+                    <button onclick="redo()" id="btn-redo" class="p-2 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 disabled:opacity-30" disabled><i data-lucide="redo-2" class="w-4 h-4"></i></button>
+                    <button onclick="openFolderModal()" class="p-2 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600"><i data-lucide="folder-plus" class="w-5 h-5"></i></button>
+                    <button onclick="openCardModal()" class="p-2 rounded-full bg-blue-600 text-white shadow-lg"><i data-lucide="plus" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+            <div id="breadcrumb" class="text-[10px] text-blue-600 font-bold uppercase mt-1 flex items-center gap-1 cursor-pointer hidden" onclick="goBack()">
+                <i data-lucide="chevron-left" class="w-3 h-3"></i> <span>Volver</span>
+            </div>
         </header>
 
-        <!-- Main Content Area -->
-        <main id="card-container" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-48">
-            <!-- Cards Injected Here -->
-        </main>
+        <main id="card-container" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-48 relative min-h-[300px]"></main>
 
-        <!-- Stats/Researcher Sidebar Overlay -->
-        <div id="sidebar" class="fixed inset-0 z-[200] hidden">
-            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleSidebar(false)"></div>
-            <div class="absolute inset-y-0 left-0 w-4/5 max-w-sm bg-white dark:bg-zinc-900 shadow-2xl flex flex-col p-6">
-                <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-xl font-bold">Panel de Control</h2>
-                    <button onclick="toggleSidebar(false)"><i data-lucide="x"></i></button>
-                </div>
-                <div class="space-y-6 flex-1 overflow-y-auto no-scrollbar">
-                    <div class="bg-slate-100 dark:bg-zinc-800 p-4 rounded-2xl">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Estadísticas Globales</p>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><p id="stat-time" class="text-xl font-bold">0m</p><p class="text-[10px] text-slate-500">Práctica Total</p></div>
-                            <div><p id="stat-cards" class="text-xl font-bold">0</p><p class="text-[10px] text-slate-500">Tarjetas Totales</p></div>
-                            <div><p id="stat-levelups" class="text-xl font-bold">0</p><p class="text-[10px] text-slate-500">Subidas Nivel</p></div>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="exportProgress()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 mb-4">
-                    <i data-lucide="share-2" class="w-5 h-5"></i> Compartir Progreso
+        <!-- Tools Hub -->
+        <div class="fixed bottom-20 right-4 z-[100] flex flex-col items-end gap-3">
+            <div id="tools-drawer" class="drawer-hidden flex items-center gap-3 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200 dark:border-zinc-800 p-2 rounded-2xl shadow-2xl mb-2">
+                <button id="drawer-btn-metro" onclick="openMetroDetail()" class="w-12 h-12 flex flex-col items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-400">
+                    <i data-lucide="music-2" class="w-5 h-5"></i>
+                    <span class="text-[8px] font-bold mt-0.5 uppercase">Metro</span>
                 </button>
+                <div class="w-px h-8 bg-slate-200 dark:bg-zinc-800"></div>
+                <button id="drawer-btn-timer" onclick="openTimerDetail()" class="w-12 h-12 flex flex-col items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-400">
+                    <i data-lucide="timer" class="w-5 h-5"></i>
+                    <span class="text-[8px] font-bold mt-0.5 uppercase">Timer</span>
+                </button>
+                <div class="w-px h-8 bg-slate-200 dark:bg-zinc-800"></div>
+                <button id="drawer-btn-dual" onclick="openDualTaskDetail()" class="w-12 h-12 flex flex-col items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-400">
+                    <i data-lucide="brain-circuit" class="w-5 h-5"></i>
+                    <span class="text-[8px] font-bold mt-0.5 uppercase">Dual</span>
+                </button>
+            </div>
+
+            <button id="hub-toggle" onclick="toggleToolsDrawer()" class="w-16 h-16 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-full shadow-2xl flex items-center justify-center relative active:scale-95 transition-transform">
+                <svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full p-0">
+                    <path id="seg-metro" class="hub-arc" d="M 50 8 A 42 42 0 0 1 86.37 71" />
+                    <path id="seg-dual" class="hub-arc" d="M 86.37 71 A 42 42 0 0 1 13.63 71" />
+                    <path id="seg-timer" class="hub-arc" d="M 13.63 71 A 42 42 0 0 1 50 8" />
+                </svg>
+                <i data-lucide="wrench" class="w-6 h-6 text-slate-500 dark:text-zinc-400"></i>
+            </button>
+        </div>
+
+        <!-- Context Menu -->
+        <div id="context-menu" class="hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-1 overflow-hidden">
+            <div id="ctx-item-actions">
+                <button onclick="handleCtx('edit')" class="w-full text-left px-4 py-3 text-sm font-bold flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i> Editar</button>
+                <button onclick="handleCtx('copy')" class="w-full text-left px-4 py-3 text-sm font-bold flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"><i data-lucide="copy" class="w-4 h-4"></i> Copiar</button>
+                <button onclick="handleCtx('cut')" class="w-full text-left px-4 py-3 text-sm font-bold flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-orange-500"><i data-lucide="scissors" class="w-4 h-4"></i> Cortar</button>
+                <div class="h-px bg-slate-100 dark:bg-zinc-800 my-1"></div>
+                <button onclick="handleCtx('delete')" class="w-full text-left px-4 py-3 text-sm font-bold flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i> Eliminar</button>
+            </div>
+            <div id="ctx-empty-actions" class="hidden">
+                <button onclick="pasteItem(); hideContextMenu();" class="w-full text-left px-4 py-3 text-sm font-bold flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-emerald-600"><i data-lucide="clipboard-paste" class="w-4 h-4"></i> Pegar aquí</button>
             </div>
         </div>
 
-        <!-- Independent Tool Icons -->
-        <div class="fixed bottom-20 right-4 z-40 flex flex-col gap-3 pointer-events-none">
-            <!-- Metronome Icon -->
-            <button id="min-metro" onclick="openMetroDetail()" class="pointer-events-auto w-14 h-14 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl flex flex-col items-center justify-center transition-all active:scale-95">
-                <i data-lucide="music-2" class="w-5 h-5 mb-0.5"></i>
-                <span id="mini-bpm" class="text-[10px] font-bold">120</span>
-            </button>
-            <!-- Timer Icon -->
-            <button id="min-timer-btn" onclick="openTimerDetail()" class="pointer-events-auto w-14 h-14 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl flex flex-col items-center justify-center transition-all active:scale-95">
-                <i data-lucide="timer" class="w-5 h-5 mb-0.5"></i>
-                <span id="mini-timer" class="text-[10px] font-mono font-bold">--:--</span>
-            </button>
-        </div>
-
-        <!-- Metronome Detail Modal -->
+        <!-- Overlays -->
         <div id="metro-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] hidden items-center justify-center p-6">
             <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
                 <button onclick="closeMetroDetail()" class="absolute top-6 right-6 text-slate-400"><i data-lucide="x"></i></button>
-                <h3 class="text-xl font-bold mb-8 text-blue-600">Metrónomo</h3>
-                
+                <h3 class="text-xl font-bold mb-8 text-blue-600 text-center">Metrónomo</h3>
                 <div class="flex justify-center mb-8">
-                    <button id="metro-toggle" onclick="toggleMetronome()" class="w-20 h-20 rounded-full bg-slate-100 dark:bg-zinc-800 text-blue-600 flex items-center justify-center transition-all">
+                    <button id="metro-toggle" onclick="toggleMetronome()" class="w-20 h-20 rounded-full bg-slate-100 dark:bg-zinc-800 text-blue-600 flex items-center justify-center">
                         <i data-lucide="play" id="metro-icon" class="w-10 h-10 ml-1"></i>
                     </button>
                 </div>
-
                 <div class="flex items-center gap-4">
                     <button onclick="changeBPM(-1)" class="p-3 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">-</button>
                     <div class="flex-1 text-center">
@@ -107,387 +149,732 @@
             </div>
         </div>
 
-        <!-- Timer Detail Modal -->
         <div id="timer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] hidden items-center justify-center p-6">
             <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
                 <button onclick="closeTimerDetail()" class="absolute top-6 right-6 text-slate-400"><i data-lucide="x"></i></button>
-                <h3 class="text-xl font-bold mb-8 text-blue-600">Temporizador</h3>
-                
-                <div class="space-y-6">
-                    <div class="text-center py-4">
-                        <span id="detail-timer-clock" class="text-6xl font-black font-mono">00:00</span>
-                    </div>
-                    <div id="alarm-banner" class="hidden bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 p-3 rounded-xl text-center text-sm font-bold animate-pulse mb-4">
-                        Terminado
-                    </div>
-                    <div class="flex flex-col gap-4">
-                        <select id="timer-select" class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl font-bold appearance-none text-center">
-                            <option value="0.0833">5 seg (Test)</option>
-                            <option value="5">5 min</option>
-                            <option value="10">10 min</option>
-                            <option value="15">15 min</option>
-                            <option value="25">25 min</option>
-                            <option value="30">30 min</option>
-                            <option value="60">60 min</option>
-                        </select>
-                        <button id="timer-btn" onclick="toggleTimer()" class="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg shadow-lg">Iniciar</button>
-                        <button id="stop-alarm-btn" onclick="stopAlarm()" class="hidden w-full py-5 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg">Entendido</button>
-                    </div>
+                <h3 class="text-xl font-bold mb-8 text-blue-600 text-center uppercase tracking-widest text-sm">Temporizador</h3>
+                <div class="text-center py-4"><span id="detail-timer-clock" class="text-6xl font-black font-mono">00:00</span></div>
+                <div id="alarm-banner" class="hidden bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 p-3 rounded-xl text-center text-sm font-bold animate-pulse mb-4">¡Tiempo!</div>
+                <div class="flex flex-col gap-4">
+                    <select id="timer-select" class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl font-bold appearance-none text-center">
+                        <option value="0.0833">5 seg (Test)</option>
+                        <option value="1">1 min</option>
+                        <option value="5">5 min</option>
+                        <option value="10">10 min</option>
+                    </select>
+                    <button id="timer-btn" onclick="toggleTimer()" class="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg shadow-lg">Iniciar</button>
+                    <button id="stop-alarm-btn" onclick="stopAlarm()" class="hidden w-full py-5 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg">Entendido</button>
                 </div>
             </div>
         </div>
 
-        <!-- Navigation Bar -->
-        <nav class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-slate-200 dark:border-zinc-800 safe-area-bottom z-50">
-            <div class="flex justify-around items-center h-16">
-                <button onclick="switchTab('Licks y patrones')" class="nav-item flex flex-col items-center gap-1" data-tab="Licks y patrones"><i data-lucide="music" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Licks</span></button>
-                <button onclick="switchTab('Cadenas')" class="nav-item flex flex-col items-center gap-1" data-tab="Cadenas"><i data-lucide="layers" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Cadenas</span></button>
-                <button onclick="switchTab('Conceptos')" class="nav-item flex flex-col items-center gap-1" data-tab="Conceptos"><i data-lucide="brain" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Conceptos</span></button>
-                <button onclick="switchTab('Canciones')" class="nav-item flex flex-col items-center gap-1" data-tab="Canciones"><i data-lucide="mic-2" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Canciones</span></button>
+        <div id="dual-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] hidden items-center justify-center p-6">
+            <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
+                <button onclick="closeDualTaskDetail()" class="absolute top-6 right-6 text-slate-400"><i data-lucide="x"></i></button>
+                <h3 class="text-xl font-bold mb-6 text-indigo-600 text-center flex items-center justify-center gap-2">
+                    <i data-lucide="brain-circuit" class="w-5 h-5"></i> Random Beep Test
+                </h3>
+                
+                <div id="dual-setup" class="space-y-6">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Duración Sesión</label>
+                        <select id="dual-time" class="w-full bg-slate-100 dark:bg-zinc-800 p-3 rounded-xl font-bold mt-1">
+                            <option value="0.25">15 segundos (Test)</option>
+                            <option value="1">1 minuto</option>
+                            <option value="2">2 minutos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-end">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Máximo de Beeps</label>
+                            <span id="dual-beep-val" class="text-xl font-black text-indigo-600">10</span>
+                        </div>
+                        <input type="range" id="dual-beeps-max" min="1" max="25" value="10" oninput="document.getElementById('dual-beep-val').innerText=this.value" class="w-full mt-2">
+                    </div>
+                    <button onclick="startDualTask()" class="w-full py-5 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg">Comenzar</button>
+                </div>
+
+                <div id="dual-active" class="hidden text-center space-y-6">
+                    <div class="py-4"><span id="dual-clock" class="text-6xl font-black font-mono">00:00</span></div>
+                    <p class="text-slate-400 text-sm italic">Escucha con atención...</p>
+                    <button onclick="stopDualTask()" class="w-full py-4 border-2 border-slate-100 dark:border-zinc-800 rounded-2xl font-bold text-slate-400">Cancelar</button>
+                </div>
+
+                <div id="dual-result" class="hidden text-center space-y-6">
+                    <div class="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="check" class="w-8 h-8"></i></div>
+                    <h4 class="text-xl font-bold">Sesión Finalizada</h4>
+                    <div id="dual-reveal-box" class="py-6 bg-slate-50 dark:bg-zinc-800 rounded-2xl border-2 border-dashed border-slate-200 dark:border-zinc-700">
+                        <button id="reveal-btn" onclick="revealDualAnswer()" class="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold text-sm shadow-md">Revelar Conteo Real</button>
+                        <div id="actual-beeps" class="hidden">
+                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Beeps Tocados</p>
+                            <p id="actual-count-val" class="text-6xl font-black text-indigo-600">0</p>
+                        </div>
+                    </div>
+                    <button onclick="resetDualTask()" class="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-bold">Reiniciar</button>
+                </div>
             </div>
+        </div>
+
+        <div id="level-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] hidden items-center justify-center p-6">
+            <div class="bg-white dark:bg-zinc-900 w-full max-sm:w-full max-w-sm rounded-3xl p-8 shadow-2xl relative">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 id="level-modal-title" class="text-xl font-bold text-blue-600">Categoria</h3>
+                    <button onclick="closeLevelModal()" class="text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                <p id="level-modal-subtitle" class="text-[11px] text-slate-400 font-bold uppercase mb-6 tracking-tight"></p>
+                <div id="level-msg" class="hidden text-center text-xs font-black text-amber-500 uppercase mb-4 animate-pulse">[Desbloqueado cuando mejora llega al 100%]</div>
+                <div id="level-content" class="sublevel-stack no-scrollbar max-h-[60vh] overflow-y-auto"></div>
+                <p class="text-center text-[10px] text-slate-400 mt-8 uppercase tracking-widest font-bold">Progreso Nivel</p>
+            </div>
+        </div>
+
+        <!-- CRUD Modals -->
+        <div id="card-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] hidden items-center justify-center p-6">
+            <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <h2 id="card-modal-title" class="text-xl font-bold mb-4">Nueva Card</h2>
+                <form id="card-form" class="space-y-4">
+                    <input type="hidden" id="edit-id">
+                    <input type="text" id="form-title" placeholder="Título" required class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl outline-none font-bold">
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="col-span-1">
+                            <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">BPM Objetivo</label>
+                            <input type="number" id="form-bpm" placeholder="120" required class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl outline-none text-blue-600 font-black">
+                        </div>
+                        <div class="col-span-1">
+                            <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Núm. Notas</label>
+                            <input type="number" id="form-notes" placeholder="16" required class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl outline-none text-indigo-600 font-black">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Subdivisión Principal</label>
+                        <input type="text" id="form-subdiv" placeholder="Semicorcheas" required class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl outline-none font-bold">
+                    </div>
+
+                    <textarea id="form-desc" placeholder="Descripción / Notas adicionales" class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl outline-none h-24"></textarea>
+                    
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeCardModal()" class="flex-1 py-3 font-bold text-slate-400">Cancelar</button>
+                        <button type="submit" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="folder-modal" onclick="handleFolderOverlayClick(event)" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] hidden items-center justify-center p-6">
+            <div id="folder-modal-content" class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
+                <h2 id="folder-modal-title" class="text-xl font-bold mb-4">Nueva Carpeta</h2>
+                <input type="text" id="folder-name" placeholder="Nombre" class="w-full bg-slate-100 dark:bg-zinc-800 p-4 rounded-xl mb-4 outline-none">
+                <div class="flex gap-2">
+                    <button onclick="closeFolderModal()" class="flex-1 py-3 font-bold text-slate-400">Cancelar</button>
+                    <button id="folder-save-btn" onclick="createFolder()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Crear</button>
+                </div>
+            </div>
+        </div>
+
+        <nav class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-slate-200 dark:border-zinc-800 safe-area-bottom z-50 h-16 flex justify-around items-center">
+            <button onclick="switchTab('Licks y patrones')" class="nav-item flex flex-col items-center gap-1 transition-all" data-tab="Licks y patrones"><i data-lucide="music" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Licks</span></button>
+            <button onclick="switchTab('Cadenas')" class="nav-item flex flex-col items-center gap-1 transition-all" data-tab="Cadenas"><i data-lucide="layers" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Cadenas</span></button>
+            <button onclick="switchTab('Conceptos')" class="nav-item flex flex-col items-center gap-1 transition-all" data-tab="Conceptos"><i data-lucide="brain" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Conceptos</span></button>
+            <button onclick="switchTab('Canciones')" class="nav-item flex flex-col items-center gap-1 transition-all" data-tab="Canciones"><i data-lucide="mic-2" class="w-6 h-6"></i><span class="text-[9px] font-medium uppercase">Canciones</span></button>
         </nav>
     </div>
 
-    <!-- Modals -->
-    <div id="card-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-white dark:bg-zinc-900 w-full max-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform transition-transform translate-y-full" id="modal-content">
-            <div class="flex justify-between items-center mb-6">
-                <h2 id="modal-card-title" class="text-xl font-bold">Añadir Flashcard</h2>
-                <button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button>
-            </div>
-            <form id="card-form" class="space-y-4">
-                <input type="text" id="form-title" placeholder="Título" required class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none">
-                <textarea id="form-desc" rows="3" placeholder="Descripción" class="w-full bg-slate-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 outline-none"></textarea>
-                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl">Guardar</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="level-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] hidden items-center justify-center p-6">
-        <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
-            <div class="flex justify-between items-center mb-6">
-                <h3 id="level-modal-title" class="text-xl font-bold text-blue-600">Categoria</h3>
-                <button onclick="closeLevelModal()" class="text-slate-400"><i data-lucide="x"></i></button>
-            </div>
-            <div id="level-checkboxes" class="space-y-4"></div>
-        </div>
-    </div>
-
     <script>
-        // Global State
-        let currentTab = 'Licks y patrones';
-        let editingIndex = -1; // -1 means creating new
-        let data = JSON.parse(localStorage.getItem('music_jit_v4')) || {
-            'Licks y patrones': [], 'Cadenas': [], 'Conceptos': [], 'Canciones': [],
-            stats: { totalPracticeTime: 0, levelUps: 0 }
-        };
-
-        // --- Audio Core ---
-        let audioCtx = null;
-        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-
-        // --- Metronome ---
-        let nextBeatTime = 0.0;
-        let bpm = 120;
-        let isMetroRunning = false;
-        let metroTimerId = null;
-
-        function playClick() {
-            const osc = audioCtx.createOscillator();
-            const envelope = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            envelope.gain.value = 1;
-            envelope.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 0.001);
-            envelope.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-            osc.connect(envelope);
-            envelope.connect(audioCtx.destination);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.1);
-        }
-
-        function scheduler() {
-            while (nextBeatTime < audioCtx.currentTime + 0.1) {
-                playClick();
-                nextBeatTime += 60.0 / bpm;
-            }
-            metroTimerId = setTimeout(scheduler, 25);
-        }
-
-        function toggleMetronome() {
-            initAudio();
-            isMetroRunning = !isMetroRunning;
-            const btn = document.getElementById('metro-toggle');
-            const icon = document.getElementById('metro-icon');
-            const minBtn = document.getElementById('min-metro');
-            
-            if (isMetroRunning) {
-                btn.classList.add('bg-blue-600', 'text-white');
-                icon.setAttribute('data-lucide', 'pause');
-                minBtn.classList.add('glow-active');
-                nextBeatTime = audioCtx.currentTime;
-                scheduler();
-            } else {
-                btn.classList.remove('bg-blue-600', 'text-white');
-                icon.setAttribute('data-lucide', 'play');
-                minBtn.classList.remove('glow-active');
-                clearTimeout(metroTimerId);
-            }
-            lucide.createIcons();
-        }
-
-        function setBPM(val) {
-            bpm = parseInt(val);
-            document.getElementById('mini-bpm').innerText = bpm;
-            document.getElementById('detail-bpm').innerText = bpm;
-            document.getElementById('bpm-slider').value = bpm;
-        }
-        function changeBPM(delta) { setBPM(bpm + delta); }
-
-        // --- Timer & Alarm ---
-        let timeLeft = 0;
-        let timerRunning = false;
-        let countdownId = null;
-
-        function startAlarm() {
-            initAudio();
-            const now = audioCtx.currentTime;
-            
-            // Zen Chime Sequence (Fades out automatically)
-            const playChime = (freq, startTime, duration) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, startTime);
-                
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(0.1, startTime + 0.1);
-                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-                
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(startTime);
-                osc.stop(startTime + duration);
-            };
-
-            // Play a soft 3-note chime sequence that ends on its own
-            playChime(523.25, now, 2);       // C5
-            playChime(659.25, now + 0.5, 2); // E5
-            playChime(783.99, now + 1.0, 3); // G5
-            
-            document.getElementById('alarm-banner').classList.remove('hidden');
-            document.getElementById('stop-alarm-btn').classList.remove('hidden');
-            document.getElementById('timer-btn').classList.add('hidden');
-            openTimerDetail();
-        }
-
-        function stopAlarm() {
-            // Functional stop: hides UI banners and restores buttons
-            document.getElementById('alarm-banner').classList.add('hidden');
-            document.getElementById('stop-alarm-btn').classList.add('hidden');
-            document.getElementById('timer-btn').classList.remove('hidden');
-        }
-
-        function toggleTimer() {
-            const minBtn = document.getElementById('min-timer-btn');
-            if (timerRunning) {
-                clearInterval(countdownId);
-                timerRunning = false;
-                document.getElementById('timer-btn').innerText = 'Iniciar';
-                document.getElementById('mini-timer').innerText = '--:--';
-                document.getElementById('detail-timer-clock').innerText = '00:00';
-                minBtn.classList.remove('glow-active');
-            } else {
-                timeLeft = Math.round(document.getElementById('timer-select').value * 60);
-                timerRunning = true;
-                document.getElementById('timer-btn').innerText = 'Parar';
-                minBtn.classList.add('glow-active');
-                updateTimerDisplay();
-                countdownId = setInterval(() => {
-                    timeLeft--;
-                    data.stats.totalPracticeTime++;
-                    updateTimerDisplay();
-                    if (timeLeft <= 0) {
-                        clearInterval(countdownId);
-                        timerRunning = false;
-                        minBtn.classList.remove('glow-active');
-                        document.getElementById('timer-btn').innerText = 'Iniciar';
-                        startAlarm();
-                    }
-                    if (timeLeft % 60 === 0) saveData(); 
-                }, 1000);
-            }
-        }
-
-        function updateTimerDisplay() {
-            const m = Math.floor(timeLeft / 60);
-            const s = timeLeft % 60;
-            const display = `${m}:${s < 10 ? '0' : ''}${s}`;
-            document.getElementById('mini-timer').innerText = display;
-            document.getElementById('detail-timer-clock').innerText = display;
-        }
-
-        // --- Core UI & Navigation ---
-        function switchTab(tab) {
-            currentTab = tab;
-            document.getElementById('view-title').innerText = tab;
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.toggle('text-blue-600', item.dataset.tab === tab);
-                item.classList.toggle('text-slate-400', item.dataset.tab !== tab);
-            });
-            renderCards();
-        }
-
-        function toggleSidebar(show) {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('hidden', !show);
-            if(show) updateStats();
-        }
-
-        function updateStats() {
-            document.getElementById('stat-time').innerText = Math.floor(data.stats.totalPracticeTime / 60) + 'm';
-            let count = 0;
-            ['Licks y patrones', 'Cadenas', 'Conceptos', 'Canciones'].forEach(t => count += data[t].length);
-            document.getElementById('stat-cards').innerText = count;
-            document.getElementById('stat-levelups').innerText = data.stats.levelUps;
-        }
-
-        function exportProgress() {
-            const text = `Mi progreso en Music JIT Trainer:\nSubidas de Nivel: ${data.stats.levelUps}\nTiempo de práctica: ${Math.floor(data.stats.totalPracticeTime / 60)} min`;
-            if (navigator.share) {
-                navigator.share({ title: 'Progreso Musical', text: text });
-            } else {
-                navigator.clipboard.writeText(text);
-                alert("Progreso copiado al portapapeles");
-            }
-        }
-
-        function openMetroDetail() { document.getElementById('metro-modal').classList.replace('hidden', 'flex'); }
-        function closeMetroDetail() { document.getElementById('metro-modal').classList.replace('flex', 'hidden'); }
-        function openTimerDetail() { document.getElementById('timer-modal').classList.replace('hidden', 'flex'); }
-        function closeTimerDetail() { document.getElementById('timer-modal').classList.replace('flex', 'hidden'); }
-
-        function openModal(idx = -1) { 
-            editingIndex = idx;
-            const titleInput = document.getElementById('form-title');
-            const descInput = document.getElementById('form-desc');
-            const modalTitle = document.getElementById('modal-card-title');
-            
-            if (idx !== -1) {
-                const card = data[currentTab][idx];
-                titleInput.value = card.title;
-                descInput.value = card.description;
-                modalTitle.innerText = "Editar Flashcard";
-            } else {
-                titleInput.value = "";
-                descInput.value = "";
-                modalTitle.innerText = "Añadir Flashcard";
-            }
-
-            document.getElementById('card-modal').classList.remove('hidden'); 
-            setTimeout(()=>document.getElementById('modal-content').classList.remove('translate-y-full'),10); 
-        }
-
-        function closeModal() { 
-            document.getElementById('modal-content').classList.add('translate-y-full'); 
-            setTimeout(()=>document.getElementById('card-modal').classList.add('hidden'),300); 
-        }
-
-        function saveData() { localStorage.setItem('music_jit_v4', JSON.stringify(data)); }
-        function deleteCard(i) { if(confirm('¿Eliminar?')){ data[currentTab].splice(i,1); saveData(); renderCards(); } }
-
         const CATEGORIES = [
-            { id: 'transferencia', name: 'Transferencia', type: 'levels' },
-            { id: 'mejora', name: 'Mejora', type: 'percentage' },
-            { id: 'consistencia', name: 'Consistencia', type: 'levels' },
-            { id: 'automatismo', name: 'Automatismo', type: 'levels' },
-            { id: 'estabilidad', name: 'Estabilidad', type: 'levels' }
+            { 
+                id: 'transferencia', 
+                name: 'Transferencia', 
+                type: 'levels', 
+                count: 5,
+                labels: ['Análisis técnico', 'Análisis teórico', 'Análisis emocional', 'Se derivaron conceptos', 'Encadenado con más vocabulario'] 
+            },
+            { 
+                id: 'mejora', 
+                name: 'Mejora', 
+                type: 'percentage', 
+                subtitle: 'Porcentaje de velocidad actual' 
+            },
+            { 
+                id: 'consistencia', 
+                name: 'Consistencia', 
+                type: 'levels', 
+                count: 3, 
+                subtitle: '5 intentos a velocidad sin errores',
+                labels: ['Misma sesión (corto plazo)', 'Día siguiente (mediano plazo)', 'Semana siguiente (largo plazo)'] 
+            },
+            { 
+                id: 'automatismo', 
+                name: 'Automatismo', 
+                type: 'levels', 
+                count: 3, 
+                subtitle: 'Cinco intentos a velocidad con tarea dual',
+                labels: ['Misma sesión (corto plazo)', 'Día siguiente (mediano plazo)', 'Semana siguiente (largo plazo)'] 
+            }
         ];
 
-        function renderCards() {
-            const container = document.getElementById('card-container');
-            container.innerHTML = '';
-            const tabData = data[currentTab] || [];
-            tabData.forEach((card, index) => {
-                const cardEl = document.createElement('div');
-                cardEl.className = 'card-enter bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-zinc-800';
-                cardEl.innerHTML = `
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex-1"><h3 class="font-bold text-lg">${card.title}</h3><p class="text-[10px] text-slate-400 uppercase">${card.description || ''}</p></div>
-                        <div class="flex gap-3">
-                            <button onclick="openModal(${index})" class="text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button onclick="deleteCard(${index})" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-5 gap-2">
-                        ${CATEGORIES.map(cat => {
-                            const val = card.mastery[cat.id];
-                            const active = cat.type === 'percentage' ? val > 0 : val.some(v => v);
-                            return `<button onclick="openLevelDetail(${index},'${cat.id}')" class="flex flex-col items-center p-2 rounded-xl border-2 transition-all ${active ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-600 text-blue-600 glow-active' : 'bg-slate-50 dark:bg-zinc-800 border-slate-100 dark:border-zinc-700 text-slate-400'}">
-                                <span class="text-[6px] font-black uppercase text-center">${cat.name}</span>
-                                <span class="text-[10px] font-bold">${cat.type === 'percentage' ? val+'%' : val.filter(v=>v).length+'/3'}</span>
-                            </button>`;
-                        }).join('')}
-                    </div>`;
-                container.appendChild(cardEl);
+        let currentTab = 'Licks y patrones';
+        let currentPath = [];
+        let activeCardId = null;
+        let activeCategoryId = null;
+        
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 20;
+
+        let data = JSON.parse(localStorage.getItem('music_jit_v11')) || {
+            'Licks y patrones': { items: [] },
+            'Cadenas': { items: [] },
+            'Conceptos': { items: [] },
+            'Canciones': { items: [] }
+        };
+
+        function pushHistory() {
+            if (historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+            history.push(JSON.stringify(data));
+            if (history.length > MAX_HISTORY) history.shift();
+            else historyIndex++;
+            updateHistoryButtons();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                data = JSON.parse(history[historyIndex]);
+                currentPath = [];
+                save(false); render();
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                data = JSON.parse(history[historyIndex]);
+                currentPath = [];
+                save(false); render();
+            }
+        }
+
+        function updateHistoryButtons() {
+            document.getElementById('btn-undo').disabled = historyIndex <= 0;
+            document.getElementById('btn-redo').disabled = historyIndex >= history.length - 1;
+        }
+
+        function save(recordHistory = true) {
+            localStorage.setItem('music_jit_v11', JSON.stringify(data));
+            if (recordHistory) pushHistory();
+            updateHistoryButtons();
+        }
+
+        let clipboard = null;
+
+        function getCurrentFolder() {
+            if (!data[currentTab]) { currentTab = Object.keys(data)[0]; }
+            let folder = data[currentTab];
+            let newPath = [];
+            for (let id of currentPath) { 
+                const found = folder.items.find(i => i.id === id);
+                if (found && found.type === 'folder') {
+                    folder = found;
+                    newPath.push(id);
+                } else { break; }
+            }
+            currentPath = newPath;
+            return folder;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab; currentPath = [];
+            document.getElementById('view-title').innerText = tab;
+            document.querySelectorAll('.nav-item').forEach(el => {
+                const isActive = el.dataset.tab === tab;
+                el.classList.toggle('text-blue-600', isActive);
+                el.classList.toggle('font-bold', isActive);
+                el.classList.toggle('text-slate-400', !isActive);
             });
+            render();
+        }
+
+        function goBack() { currentPath.pop(); render(); }
+
+        let longPressTimer;
+        let contextTargetId = null;
+
+        function showContextMenu(e, id = null) {
+            if (e.preventDefault) e.preventDefault();
+            contextTargetId = id;
+            
+            const menu = document.getElementById('context-menu');
+            const itemActions = document.getElementById('ctx-item-actions');
+            const emptyActions = document.getElementById('ctx-empty-actions');
+
+            if (id) {
+                itemActions.classList.remove('hidden');
+                emptyActions.classList.add('hidden');
+            } else if (clipboard) {
+                itemActions.classList.add('hidden');
+                emptyActions.classList.remove('hidden');
+            } else { return; }
+
+            menu.classList.remove('hidden');
+            let x = e.pageX || (e.touches ? e.touches[0].pageX : 0);
+            let y = e.pageY || (e.touches ? e.touches[0].pageY : 0);
+            if (x + 160 > window.innerWidth) x -= 160;
+            if (y + 200 > window.innerHeight) y -= 200;
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
             lucide.createIcons();
         }
 
-        let activeCardIdx, activeCatId;
-        function openLevelDetail(idx, catId) {
-            activeCardIdx = idx; activeCatId = catId;
-            const cat = CATEGORIES.find(c => c.id === catId);
-            const card = data[currentTab][idx];
-            document.getElementById('level-modal-title').innerText = cat.name;
-            const container = document.getElementById('level-checkboxes');
-            container.innerHTML = '';
-            if (cat.type === 'levels') {
-                [0,1,2].forEach(i => {
-                    const chk = card.mastery[catId][i];
-                    const div = document.createElement('div');
-                    div.className = `p-4 rounded-xl border-2 flex justify-between transition-all ${chk ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20' : 'bg-slate-50 dark:bg-zinc-800 text-slate-400 border-slate-100 dark:border-zinc-700'}`;
-                    div.onclick = () => {
-                        card.mastery[catId][i] = !card.mastery[catId][i];
-                        if(card.mastery[catId][i]) data.stats.levelUps++;
-                        saveData(); openLevelDetail(idx, catId); renderCards();
+        function hideContextMenu() { document.getElementById('context-menu').classList.add('hidden'); }
+
+        function handleCtx(action) {
+            const folder = getCurrentFolder();
+            const item = folder.items.find(i => i.id === contextTargetId);
+            if (!item && (action === 'copy' || action === 'cut' || action === 'delete' || action === 'edit')) {
+                hideContextMenu();
+                return;
+            }
+            switch(action) {
+                case 'delete': deleteItem(contextTargetId); break;
+                case 'copy': clipboard = { item: JSON.parse(JSON.stringify(item)), mode: 'copy' }; break;
+                case 'cut': clipboard = { item: JSON.parse(JSON.stringify(item)), mode: 'cut' }; break;
+                case 'edit': if (item.type === 'folder') openFolderModal(item); else openCardModal(item); break;
+            }
+            hideContextMenu();
+        }
+
+        function pasteItem() {
+            if (!clipboard) return;
+            const folder = getCurrentFolder();
+            const newItem = JSON.parse(JSON.stringify(clipboard.item));
+            if (clipboard.mode === 'cut') {
+                Object.keys(data).forEach(tab => {
+                    const findAndRemove = (container) => {
+                        const idx = container.items.findIndex(i => i.id === clipboard.item.id);
+                        if (idx !== -1) { container.items.splice(idx, 1); return true; }
+                        return container.items.some(i => i.type === 'folder' && findAndRemove(i));
                     };
-                    div.innerHTML = `<span>Nivel ${i+1}</span><i data-lucide="${chk?'check-circle':'circle'}"></i>`;
+                    findAndRemove(data[tab]);
+                });
+                clipboard = null;
+            } else {
+                newItem.id = (newItem.type === 'card' ? 'card-' : 'fld-') + Date.now();
+                if (newItem.type === 'folder') {
+                    const resetIds = (f) => {
+                        f.id = 'fld-' + Math.random().toString(36).substr(2, 9);
+                        f.items.forEach(child => {
+                            if (child.type === 'folder') resetIds(child);
+                            else child.id = 'card-' + Math.random().toString(36).substr(2, 9);
+                        });
+                    };
+                    resetIds(newItem);
+                }
+            }
+            folder.items.unshift(newItem);
+            save(); render();
+        }
+
+        function attachContextHandlers(el, id = null) {
+            el.oncontextmenu = (e) => showContextMenu(e, id);
+            el.ontouchstart = (e) => { longPressTimer = setTimeout(() => showContextMenu(e, id), 600); };
+            el.ontouchend = () => clearTimeout(longPressTimer);
+            el.ontouchmove = () => clearTimeout(longPressTimer);
+        }
+
+        function createFolderUI(item) {
+            const div = document.createElement('div');
+            div.className = 'card-enter bg-slate-100 dark:bg-zinc-800 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-all';
+            div.onclick = () => { currentPath.push(item.id); render(); };
+            attachContextHandlers(div, item.id);
+            div.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <i data-lucide="folder" class="w-6 h-6 text-blue-500 fill-blue-500/20"></i>
+                    <div><h4 class="font-bold text-sm">${item.title}</h4><p class="text-[9px] text-slate-400 font-bold uppercase">${item.items.length} elementos</p></div>
+                </div>
+                <div onclick="event.stopPropagation(); showContextMenu(event, '${item.id}')" class="text-slate-300 p-2"><i data-lucide="more-vertical" class="w-4 h-4"></i></div>
+            `;
+            return div;
+        }
+
+        function createCardUI(item) {
+            const div = document.createElement('div');
+            div.className = 'card-enter bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-zinc-800';
+            attachContextHandlers(div, item.id);
+            
+            const targetBPM = item.specs?.bpm || '--';
+            const subdiv = item.specs?.subdiv || '--';
+            const noteCount = item.specs?.notes || '--';
+
+            const mejora = item.mastery ? item.mastery.mejora : 0;
+            const isLocked = (mejora < 100);
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h3 class="font-bold text-base leading-tight">${item.title}</h3>
+                        <div class="flex flex-wrap gap-1.5 mt-2">
+                            <span class="spec-tag">${targetBPM} BPM</span>
+                            <span class="spec-tag">${subdiv}</span>
+                            <span class="spec-tag">${noteCount} notas</span>
+                        </div>
+                    </div>
+                    <div onclick="event.stopPropagation(); showContextMenu(event, '${item.id}')" class="text-slate-200 p-2"><i data-lucide="more-vertical" class="w-5 h-5"></i></div>
+                </div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-4 leading-relaxed">${item.description || 'Sin notas'}</p>
+                <div class="mastery-grid">
+                    ${CATEGORIES.map(cat => {
+                        const val = item.mastery ? item.mastery[cat.id] : (cat.type === 'percentage' ? 0 : []);
+                        const active = cat.type === 'percentage' ? val > 0 : (Array.isArray(val) && val.some(v => v));
+                        const scoreDisplay = cat.type === 'percentage' ? 
+                            (val || 0) + '%' : 
+                            (Array.isArray(val) ? val.filter(v => v).length : 0) + '/' + cat.count;
+
+                        const gated = (cat.id === 'consistencia' || cat.id === 'automatismo') && isLocked;
+
+                        return `
+                            <button onclick="openLevelDetail('${item.id}', '${cat.id}')" 
+                                class="flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all w-full
+                                ${gated ? 'level-locked' : ''}
+                                ${active ? 'bg-blue-50 border-blue-600 dark:bg-blue-900/20 text-blue-600' : 'border-slate-100 dark:border-zinc-800 text-slate-400'}">
+                                <span class="text-[7px] font-black uppercase tracking-tighter mb-1 text-center leading-tight">${cat.name}</span>
+                                <div class="text-[9px] font-black">${scoreDisplay}</div>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            return div;
+        }
+
+        function render() {
+            const container = document.getElementById('card-container');
+            if (!container) return;
+            container.innerHTML = '';
+            attachContextHandlers(container, null);
+            const folder = getCurrentFolder();
+            if (!folder || !folder.items) return;
+            document.getElementById('breadcrumb').classList.toggle('hidden', currentPath.length === 0);
+            if (folder.items.length === 0) {
+                container.innerHTML = `<div class="py-20 text-center opacity-20"><i data-lucide="inbox" class="mx-auto w-10 h-10 mb-2"></i><p>Pestaña vacía</p></div>`;
+            } else {
+                folder.items.forEach(item => { container.appendChild((item.type === 'folder') ? createFolderUI(item) : createCardUI(item)); });
+            }
+            lucide.createIcons();
+        }
+
+        function deleteItem(id) { 
+            const f = getCurrentFolder(); 
+            const idx = f.items.findIndex(i => i.id === id);
+            if (idx !== -1) { f.items.splice(idx, 1); save(); render(); }
+        }
+
+        function openLevelDetail(cardId, catId) {
+            activeCardId = cardId; activeCategoryId = catId;
+            const item = getCurrentFolder().items.find(i => i.id === cardId);
+            const category = CATEGORIES.find(c => c.id === catId);
+            
+            const mejora = item.mastery ? item.mastery.mejora : 0;
+            const isLocked = (mejora < 100) && (catId === 'consistencia' || catId === 'automatismo');
+
+            const msgEl = document.getElementById('level-msg');
+            msgEl.classList.toggle('hidden', !isLocked);
+
+            document.getElementById('level-modal-title').innerText = category.name;
+            document.getElementById('level-modal-subtitle').innerText = category.subtitle || '';
+            
+            const container = document.getElementById('level-content');
+            container.innerHTML = '';
+
+            if (category.type === 'levels') {
+                if (!item.mastery) item.mastery = {};
+                if (!Array.isArray(item.mastery[catId]) || item.mastery[catId].length !== category.count) {
+                    item.mastery[catId] = new Array(category.count).fill(false);
+                }
+                
+                item.mastery[catId].forEach((checked, i) => {
+                    const label = category.labels[i] || `${i + 1}`;
+                    const div = document.createElement('div');
+                    div.className = `flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all w-full
+                        ${isLocked ? 'level-locked' : ''}
+                        ${checked ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 dark:bg-zinc-800 text-slate-400 border-transparent'}`;
+                    
+                    div.onclick = () => { if(!isLocked) toggleSubLevel(i); };
+                    div.innerHTML = `<span class="font-bold text-xs">${label}</span><i data-lucide="${checked ? 'check-circle' : 'circle'}" class="w-5 h-5 shrink-0"></i>`;
                     container.appendChild(div);
                 });
             } else {
-                container.innerHTML = `<div class="text-center"><span class="text-4xl font-black">${card.mastery[catId]}%</span></div>
-                    <input type="range" value="${card.mastery[catId]}" oninput="updatePerc(this.value)" class="w-full my-8">`;
+                if (!item.mastery) item.mastery = {};
+                const val = item.mastery[catId] || 0;
+                container.innerHTML = `<div class="w-full text-center"><div class="mb-4"><span class="text-5xl font-black text-blue-600">${val}%</span></div><input type="range" min="0" max="100" value="${val}" oninput="updateMasteryPercentage(this.value)" class="w-full my-4"></div>`;
             }
             document.getElementById('level-modal').classList.replace('hidden', 'flex');
             lucide.createIcons();
         }
-        function updatePerc(v) { data[currentTab][activeCardIdx].mastery[activeCatId] = parseInt(v); saveData(); renderCards(); document.querySelector('#level-checkboxes span').innerText = v+'%'; }
+
+        function toggleSubLevel(idx) {
+            const item = getCurrentFolder().items.find(i => i.id === activeCardId);
+            item.mastery[activeCategoryId][idx] = !item.mastery[activeCategoryId][idx];
+            save(); render(); openLevelDetail(activeCardId, activeCategoryId);
+        }
+
+        function updateMasteryPercentage(val) {
+            const item = getCurrentFolder().items.find(i => i.id === activeCardId);
+            item.mastery[activeCategoryId] = parseInt(val);
+            document.querySelector('#level-content span.text-5xl').innerText = val + '%';
+            save(); render();
+        }
+
         function closeLevelModal() { document.getElementById('level-modal').classList.replace('flex', 'hidden'); }
 
-        document.getElementById('card-form').onsubmit = (e) => {
-            e.preventDefault();
-            const title = document.getElementById('form-title').value;
-            const description = document.getElementById('form-desc').value;
-
-            if (editingIndex !== -1) {
-                // Update existing
-                const card = data[currentTab][editingIndex];
-                card.title = title;
-                card.description = description;
+        let editingItemId = null;
+        function openCardModal(item = null) {
+            const modal = document.getElementById('card-modal');
+            const form = document.getElementById('card-form');
+            form.reset();
+            if (item && item.type === 'card') {
+                editingItemId = item.id;
+                document.getElementById('card-modal-title').innerText = "Editar Card";
+                document.getElementById('form-title').value = item.title;
+                document.getElementById('form-desc').value = item.description;
+                document.getElementById('form-bpm').value = item.specs?.bpm || '';
+                document.getElementById('form-notes').value = item.specs?.notes || '';
+                document.getElementById('form-subdiv').value = item.specs?.subdiv || '';
             } else {
-                // Create new
-                data[currentTab].unshift({
-                    title: title,
-                    description: description,
-                    mastery: { transferencia:[0,0,0], mejora:0, consistencia:[0,0,0], automatismo:[0,0,0], estabilidad:[0,0,0] }
+                editingItemId = null;
+                document.getElementById('card-modal-title').innerText = "Nueva Card";
+            }
+            modal.classList.replace('hidden', 'flex');
+        }
+
+        function closeCardModal() { document.getElementById('card-modal').classList.replace('flex', 'hidden'); }
+
+        document.getElementById('card-form').onsubmit = e => {
+            e.preventDefault();
+            const folder = getCurrentFolder();
+            const title = document.getElementById('form-title').value;
+            const desc = document.getElementById('form-desc').value;
+            const bpmVal = document.getElementById('form-bpm').value;
+            const notesVal = document.getElementById('form-notes').value;
+            const subdivVal = document.getElementById('form-subdiv').value;
+            if (editingItemId) {
+                const item = folder.items.find(i => i.id === editingItemId);
+                if (item) {
+                    item.title = title; item.description = desc;
+                    item.specs = { bpm: bpmVal, notes: notesVal, subdiv: subdivVal };
+                }
+            } else {
+                folder.items.unshift({
+                    id: 'card-' + Date.now(), 
+                    type: 'card', 
+                    title: title, 
+                    description: desc,
+                    specs: { bpm: bpmVal, notes: notesVal, subdiv: subdivVal },
+                    mastery: { 
+                        transferencia: [false,false,false,false,false], 
+                        mejora: 0, 
+                        consistencia: [false,false,false], 
+                        automatismo: [false,false,false] 
+                    }
                 });
             }
-            
-            saveData(); renderCards(); closeModal();
+            save(); render(); closeCardModal();
         };
 
-        window.onload = () => { lucide.createIcons(); switchTab('Licks y patrones'); };
+        function openFolderModal(item = null) {
+            const modal = document.getElementById('folder-modal');
+            const input = document.getElementById('folder-name');
+            const btn = document.getElementById('folder-save-btn');
+            if (item && item.type === 'folder') {
+                editingItemId = item.id; document.getElementById('folder-modal-title').innerText = "Editar Carpeta";
+                input.value = item.title; btn.innerText = "Actualizar"; btn.onclick = updateFolder;
+            } else {
+                editingItemId = null; document.getElementById('folder-modal-title').innerText = "Nueva Carpeta";
+                input.value = ""; btn.innerText = "Crear"; btn.onclick = createFolder;
+            }
+            modal.classList.replace('hidden', 'flex');
+        }
+
+        function closeFolderModal() { document.getElementById('folder-modal').classList.add('hidden'); }
+        function handleFolderOverlayClick(event) {
+            const content = document.getElementById('folder-modal-content');
+            if (content && !content.contains(event.target)) { closeFolderModal(); }
+        }
+        function createFolder() { getCurrentFolder().items.unshift({ id: 'fld-' + Date.now(), type: 'folder', title: document.getElementById('folder-name').value || 'Nueva Carpeta', items: [] }); save(); render(); closeFolderModal(); }
+        function updateFolder() { 
+            const f = getCurrentFolder();
+            const item = f.items.find(i => i.id === editingItemId); 
+            if (item) item.title = document.getElementById('folder-name').value || 'Sin título'; 
+            save(); render(); closeFolderModal(); 
+        }
+
+        let isDrawerOpen = false;
+        let audioCtx = null;
+        const initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); };
+
+        function updateDrawerStates() {
+            document.getElementById('drawer-btn-metro').classList.toggle('text-blue-600', isMetroRunning);
+            document.getElementById('drawer-btn-timer').classList.toggle('text-blue-600', timerRunning);
+            document.getElementById('drawer-btn-dual').classList.toggle('text-blue-600', !!dualTimerId);
+            document.getElementById('seg-metro').classList.toggle('segment-active', isMetroRunning);
+            document.getElementById('seg-timer').classList.toggle('segment-active', timerRunning);
+            document.getElementById('seg-dual').classList.toggle('segment-active', !!dualTimerId);
+        }
+
+        function toggleToolsDrawer() {
+            isDrawerOpen = !isDrawerOpen;
+            const d = document.getElementById('tools-drawer');
+            d.classList.toggle('drawer-hidden', !isDrawerOpen);
+            d.classList.toggle('drawer-visible', isDrawerOpen);
+            if(isDrawerOpen) updateDrawerStates();
+        }
+
+        function playMajorArpeggio() {
+            initAudio(); const now = audioCtx.currentTime; const notes = [261.63, 329.63, 392.00, 523.25];
+            notes.forEach((freq, i) => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(freq, now + (i * 0.1));
+                g.gain.setValueAtTime(0, now + (i * 0.1)); g.gain.linearRampToValueAtTime(0.2, now + (i * 0.1) + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.1) + 0.5);
+                o.connect(g); g.connect(audioCtx.destination); o.start(now + (i * 0.1)); o.stop(now + (i * 0.1) + 0.6);
+            });
+        }
+
+        let bpm = 120, isMetroRunning = false, metroTimerId = null, nextBeatTime = 0;
+        function playClick(t) { const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=1000; g.gain.setValueAtTime(0.3,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.04); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.04); }
+        function metroScheduler() { while(nextBeatTime < audioCtx.currentTime + 0.1) { playClick(nextBeatTime); nextBeatTime += 60/bpm; } metroTimerId = setTimeout(metroScheduler, 25); }
+        function toggleMetronome() {
+            initAudio(); isMetroRunning = !isMetroRunning; const b = document.getElementById('metro-toggle'), i = document.getElementById('metro-icon');
+            if(isMetroRunning) { b.classList.add('bg-blue-600','text-white'); i.setAttribute('data-lucide','pause'); nextBeatTime=audioCtx.currentTime+0.05; metroScheduler(); }
+            else { b.classList.remove('bg-blue-600','text-white'); i.setAttribute('data-lucide','play'); clearTimeout(metroTimerId); }
+            updateDrawerStates(); lucide.createIcons();
+        }
+        function setBPM(v) { bpm=parseInt(v); document.getElementById('detail-bpm').innerText=v; }
+        function changeBPM(d) { bpm=Math.min(300, Math.max(30, bpm+d)); setBPM(bpm); document.getElementById('bpm-slider').value = bpm; }
+
+        let timeLeft=0, timerRunning=false, countdownId=null;
+        function toggleTimer() {
+            if(timerRunning) { clearInterval(countdownId); timerRunning=false; document.getElementById('timer-btn').innerText='Iniciar'; }
+            else { 
+                initAudio(); timeLeft=Math.round(parseFloat(document.getElementById('timer-select').value)*60); timerRunning=true; document.getElementById('timer-btn').innerText='Parar'; 
+                countdownId=setInterval(()=>{ timeLeft--; updateTimerDisplay(); if(timeLeft<=0){ clearInterval(countdownId); timerRunning=false; finishTimer(); } },1000); 
+            }
+            updateDrawerStates();
+        }
+        function updateTimerDisplay() { const m=Math.floor(timeLeft/60), s=Math.max(0, Math.round(timeLeft%60)); document.getElementById('detail-timer-clock').innerText=`${m}:${s<10?'0':''}${s}`; }
+        function finishTimer() { playMajorArpeggio(); document.getElementById('alarm-banner').classList.remove('hidden'); document.getElementById('stop-alarm-btn').classList.remove('hidden'); document.getElementById('timer-btn').classList.add('hidden'); updateDrawerStates(); }
+        function stopAlarm() { document.getElementById('alarm-banner').classList.add('hidden'); document.getElementById('stop-alarm-btn').classList.add('hidden'); document.getElementById('timer-btn').classList.remove('hidden'); document.getElementById('timer-btn').innerText='Iniciar'; updateTimerDisplay(); }
+
+        let dualTimerId = null, scheduledBeeps = [], actualBeepsPlayed = 0;
+        function startDualTask() {
+            initAudio(); const durationSec = Math.round(parseFloat(document.getElementById('dual-time').value) * 60); const maxBeeps = parseInt(document.getElementById('dual-beeps-max').value); const countToPlay = Math.floor(Math.random() * maxBeeps) + 1; actualBeepsPlayed = 0; scheduledBeeps = [];
+            for(let i=0; i<countToPlay; i++) { scheduledBeeps.push(Math.random() * (durationSec - 2) + 1); } scheduledBeeps.sort((a,b) => b-a);
+            document.getElementById('dual-setup').classList.add('hidden'); document.getElementById('dual-active').classList.remove('hidden'); const startTime = Date.now(); 
+            dualTimerId = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000; const displayTime = Math.max(0, Math.ceil(durationSec - elapsed)); const m=Math.floor(displayTime/60), s=displayTime%60; document.getElementById('dual-clock').innerText = `${m}:${s<10?'0':''}${s}`;
+                while(scheduledBeeps.length > 0 && elapsed >= scheduledBeeps[scheduledBeeps.length - 1]) { playShortBeep(); actualBeepsPlayed++; scheduledBeeps.pop(); }
+                if(elapsed >= durationSec) { clearInterval(dualTimerId); finishDualTask(); }
+            }, 50);
+            updateDrawerStates();
+        }
+        function playShortBeep() { const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='square'; o.frequency.value=800; g.gain.setValueAtTime(0.1, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.1); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.1); }
+        function finishDualTask() { playMajorArpeggio(); document.getElementById('dual-active').classList.add('hidden'); document.getElementById('dual-result').classList.remove('hidden'); document.getElementById('actual-count-val').innerText = actualBeepsPlayed; clearInterval(dualTimerId); dualTimerId = null; updateDrawerStates(); }
+        function stopDualTask() { clearInterval(dualTimerId); dualTimerId = null; resetDualTask(); updateDrawerStates(); }
+        function revealDualAnswer() { document.getElementById('reveal-btn').classList.add('hidden'); document.getElementById('actual-beeps').classList.remove('hidden'); }
+        function resetDualTask() { document.getElementById('dual-setup').classList.remove('hidden'); document.getElementById('dual-active').classList.add('hidden'); document.getElementById('dual-result').classList.add('hidden'); document.getElementById('reveal-btn').classList.remove('hidden'); document.getElementById('actual-beeps').classList.add('hidden'); }
+
+        function openMetroDetail() { toggleToolsDrawer(); document.getElementById('metro-modal').classList.replace('hidden','flex'); }
+        function closeMetroDetail() { document.getElementById('metro-modal').classList.replace('flex','hidden'); }
+        function openTimerDetail() { toggleToolsDrawer(); document.getElementById('timer-modal').classList.replace('hidden','flex'); }
+        function closeTimerDetail() { document.getElementById('timer-modal').classList.replace('flex','hidden'); }
+        function openDualTaskDetail() { toggleToolsDrawer(); document.getElementById('dual-modal').classList.replace('hidden','flex'); }
+        function closeDualTaskDetail() { document.getElementById('dual-modal').classList.replace('flex','hidden'); }
+
+        /* Sidebar Logic */
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const isOpen = sidebar.classList.contains('translate-x-0');
+            
+            if (isOpen) {
+                sidebar.classList.replace('translate-x-0', '-translate-x-full');
+                overlay.classList.replace('opacity-100', 'opacity-0');
+                overlay.classList.add('pointer-events-none');
+            } else {
+                sidebar.classList.replace('-translate-x-full', 'translate-x-0');
+                overlay.classList.replace('opacity-0', 'opacity-100');
+                overlay.classList.remove('pointer-events-none');
+            }
+        }
+
+        /* Export CSV Logic */
+        function exportToCSV() {
+            const headers = [
+                "Carpeta", "Nombre de Tarjeta",
+                "Transferencia: Análisis técnico", "Transferencia: Análisis teórico", "Transferencia: Análisis emocional", "Transferencia: Se derivaron conceptos", "Transferencia: Encadenado con más vocabulario",
+                "Mejora (Porcentaje)",
+                "Consistencia: Misma sesión (corto plazo)", "Consistencia: Día siguiente (mediano plazo)", "Consistencia: Semana siguiente (largo plazo)",
+                "Automatismo: Misma sesión (corto plazo)", "Automatismo: Día siguiente (mediano plazo)", "Automatismo: Semana siguiente (largo plazo)",
+                "Tiempo Total Práctica"
+            ];
+
+            const rows = [];
+            
+            // Función recursiva para extraer datos
+            function processFolder(folder, folderPath = "") {
+                folder.items.forEach(item => {
+                    if (item.type === 'folder') {
+                        processFolder(item, folderPath ? `${folderPath} > ${item.title}` : item.title);
+                    } else if (item.type === 'card') {
+                        const m = item.mastery || {};
+                        const trans = Array.isArray(m.transferencia) ? m.transferencia : [false,false,false,false,false];
+                        const cons = Array.isArray(m.consistencia) ? m.consistencia : [false,false,false];
+                        const auto = Array.isArray(m.automatismo) ? m.automatismo : [false,false,false];
+
+                        const row = [
+                            folderPath || "Raíz",
+                            item.title,
+                            trans[0] ? "COMPLETADO" : "PENDIENTE",
+                            trans[1] ? "COMPLETADO" : "PENDIENTE",
+                            trans[2] ? "COMPLETADO" : "PENDIENTE",
+                            trans[3] ? "COMPLETADO" : "PENDIENTE",
+                            trans[4] ? "COMPLETADO" : "PENDIENTE",
+                            (m.mejora || 0) + "%",
+                            cons[0] ? "COMPLETADO" : "PENDIENTE",
+                            cons[1] ? "COMPLETADO" : "PENDIENTE",
+                            cons[2] ? "COMPLETADO" : "PENDIENTE",
+                            auto[0] ? "COMPLETADO" : "PENDIENTE",
+                            auto[1] ? "COMPLETADO" : "PENDIENTE",
+                            auto[2] ? "COMPLETADO" : "PENDIENTE",
+                            "N/A" // Marcador para tiempo si se implementa cronómetro por tarjeta
+                        ];
+                        rows.push(row);
+                    }
+                });
+            }
+
+            // Procesar todas las pestañas principales
+            Object.keys(data).forEach(tab => {
+                processFolder(data[tab], tab);
+            });
+
+            // Construir el string CSV
+            let csvContent = "data:text/csv;charset=utf-8," 
+                + headers.join(",") + "\n"
+                + rows.map(e => e.map(val => `"${val}"`).join(",")).join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "datos_investigacion_jit.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            toggleSidebar(); // Cerrar menú tras exportar
+        }
+
+        window.addEventListener('click', () => hideContextMenu());
+        window.onload = () => { pushHistory(); lucide.createIcons(); switchTab('Licks y patrones'); };
     </script>
 </body>
 </html>
